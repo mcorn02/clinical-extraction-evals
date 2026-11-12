@@ -1,0 +1,23 @@
+2026-11-11 19:50:31.686 INFO [MainThread] run 20261111-195031_claude-haiku-5-5__extract_v1: extractor=llm model=claude-haiku-5-5 prompt=prompts/extract_v1.md data=data/synthetic/notes_v1.jsonl notes=20 workers=4 git=2f74b14
+2026-11-11 19:50:31.686 INFO [MainThread] system prompt sha256=3d4068d4cc41807349f4cbf5bc195114248baabcc3d3b85b878d8fa15195f626 (saved to system_prompt.txt)
+2026-11-11 19:50:34.402 INFO [worker_1] note note_0_0001 done: status=ok attempts=1 latency=2.71s cost=$0.00022
+2026-11-11 19:50:34.528 INFO [worker_2] note note_0_0002 done: status=ok attempts=1 latency=2.83s cost=$0.00024
+2026-11-11 19:50:34.992 INFO [worker_3] note note_0_0003 done: status=ok attempts=1 latency=3.30s cost=$0.00030
+2026-11-11 19:50:35.310 INFO [worker_0] note note_0_0000 done: status=ok attempts=1 latency=3.62s cost=$0.00033
+2026-11-11 19:50:35.383 INFO [worker_1] note note_0_0004 done: status=ok attempts=1 latency=0.98s cost=$0.00023
+2026-11-11 19:50:36.013 INFO [worker_3] note note_0_0006 done: status=ok attempts=1 latency=1.02s cost=$0.00023
+2026-11-11 19:50:36.027 INFO [worker_2] note note_0_0005 done: status=ok attempts=1 latency=1.50s cost=$0.00029
+2026-11-11 19:50:36.623 INFO [worker_0] note note_0_0007 done: status=ok attempts=1 latency=1.31s cost=$0.00030
+2026-11-11 19:50:37.034 INFO [worker_1] note note_0_0008 done: status=ok attempts=1 latency=1.65s cost=$0.00033
+2026-11-11 19:50:37.414 INFO [worker_2] note note_0_0010 done: status=ok attempts=1 latency=1.38s cost=$0.00030
+2026-11-11 19:50:38.267 INFO [worker_3] note note_0_0009 done: status=ok attempts=1 latency=2.25s cost=$0.00039
+2026-11-11 19:50:38.325 INFO [worker_1] note note_0_0012 done: status=ok attempts=1 latency=1.28s cost=$0.00028
+2026-11-11 19:50:38.413 INFO [worker_0] note note_0_0011 done: status=ok attempts=1 latency=1.78s cost=$0.00029
+2026-11-11 19:50:38.671 INFO [worker_2] note note_0_0013 done: status=ok attempts=1 latency=1.25s cost=$0.00027
+2026-11-11 19:50:39.742 INFO [worker_1] note note_0_0015 done: status=ok attempts=1 latency=1.41s cost=$0.00031
+2026-11-11 19:50:39.828 INFO [worker_3] note note_0_0014 done: status=ok attempts=1 latency=1.56s cost=$0.00032
+2026-11-11 19:50:39.922 INFO [worker_2] note note_0_0017 done: status=ok attempts=1 latency=1.25s cost=$0.00029
+2026-11-11 19:50:40.731 INFO [worker_0] note note_0_0016 done: status=ok attempts=1 latency=2.31s cost=$0.00032
+2026-11-11 19:50:41.130 INFO [worker_3] note note_0_0019 done: status=ok attempts=1 latency=1.30s cost=$0.00028
+2026-11-11 19:50:41.696 INFO [worker_1] note note_0_0018 done: status=ok attempts=1 latency=1.95s cost=$0.00032
+2026-11-11 19:50:41.708 INFO [MainThread] summary: 20 notes in 10.01s wall clock (sum of call latency 36.65s, parallelism 3.7x); failures=0 retries=0; overall F1=100.0; cost/1k notes=$0.29

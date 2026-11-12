@@ -53,10 +53,12 @@ Each run writes `results/<run_id>/` with `report.md`, `metrics.json` and `predic
 | Extractor | Prompt | Overall F1 | Conditions precision | Notes fully correct | Cost / 1k notes |
 |---|---|---:|---:|---:|---:|
 | Keyword baseline | – | 90.1 | 64.1 | 5% | $0 |
-| _model A_ | v1 | | | | |
+| Claude Haiku 5.5 | v1 | 100.0 | 100.0 | 100% | $0.29 |
 | _model B_ | v1 | | | | |
 
 The baseline finds every mention (100% recall) but has no sense of context, so its precision collapses on negations, rule-outs and family history. That's the gap an LLM has to close.
+
+Haiku 5.5 closes it completely on this set: no errors on any field or edge case, mean latency 1.8s per note. A perfect score on 20 template notes says more about the dataset than the model. The phrasings are too regular to separate models, so the next step is harder notes (the LLM rewrite pass and more varied edge cases) rather than more models on this set. Full run: [`results/reference/`](results/reference/).
 
 ## Layout
 
@@ -76,7 +78,7 @@ tests/                       metric math, label integrity, extractor behavior (n
 ## Roadmap
 
 - [x] Schema, generator, baseline, field-level metrics
-- [ ] First LLM run on 20 notes
+- [x] First LLM run on 20 notes (Claude Haiku 5.5, prompt v1)
 - [ ] 3–4 models compared on accuracy, cost per 1,000 notes and latency
 - [ ] Prompt v0 vs v1 comparison
 - [ ] Scale to 75–100 notes; optional LLM rewrite pass (`--rewrite-model`), with 20 rewritten notes checked by hand

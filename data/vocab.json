@@ -1,0 +1,54 @@
+{
+  "_note": "Synthetic vocabulary for generating and scoring notes. Canonical names are what the gold labels use; aliases and brands are surface forms that appear in note text.",
+  "conditions": {
+    "autism spectrum disorder": {"icd10": "F84.0", "aliases": ["ASD", "autism"], "meds": ["risperidone"], "population": "any"},
+    "attention-deficit hyperactivity disorder": {"icd10": "F90.9", "aliases": ["ADHD"], "meds": ["methylphenidate", "guanfacine"], "population": "any"},
+    "generalized anxiety disorder": {"icd10": "F41.1", "aliases": ["GAD", "anxiety"], "meds": ["sertraline"], "population": "any"},
+    "major depressive disorder": {"icd10": "F32.9", "aliases": ["MDD", "depression"], "meds": ["fluoxetine", "sertraline"], "population": "any"},
+    "epilepsy": {"icd10": "G40.909", "aliases": ["seizure disorder"], "meds": ["levetiracetam"], "population": "any"},
+    "asthma": {"icd10": "J45.909", "aliases": [], "meds": ["albuterol"], "population": "any"},
+    "allergic rhinitis": {"icd10": "J30.9", "aliases": ["seasonal allergies"], "meds": ["cetirizine"], "population": "any"},
+    "insomnia": {"icd10": "G47.00", "aliases": ["sleep onset difficulty"], "meds": ["melatonin"], "population": "any"},
+    "gastroesophageal reflux disease": {"icd10": "K21.9", "aliases": ["GERD", "acid reflux"], "meds": ["omeprazole"], "population": "any"},
+    "hypothyroidism": {"icd10": "E03.9", "aliases": ["underactive thyroid"], "meds": ["levothyroxine"], "population": "any"},
+    "migraine": {"icd10": "G43.909", "aliases": ["migraines"], "meds": [], "population": "any"},
+    "speech and language delay": {"icd10": "F80.9", "aliases": ["speech delay", "language delay"], "meds": [], "population": "peds"},
+    "hypertension": {"icd10": "I10", "aliases": ["HTN", "high blood pressure"], "meds": ["lisinopril"], "population": "adult"},
+    "type 2 diabetes": {"icd10": "E11.9", "aliases": ["T2DM", "type II diabetes"], "meds": ["metformin"], "population": "adult"},
+    "hyperlipidemia": {"icd10": "E78.5", "aliases": ["HLD", "high cholesterol"], "meds": ["atorvastatin"], "population": "adult"},
+    "obstructive sleep apnea": {"icd10": "G47.33", "aliases": ["OSA"], "meds": [], "population": "adult"}
+  },
+  "medications": {
+    "risperidone": {"brands": ["Risperdal"], "doses": ["0.25 mg BID", "0.5 mg daily"]},
+    "methylphenidate": {"brands": ["Concerta", "Ritalin"], "doses": ["18 mg qAM", "10 mg BID"]},
+    "guanfacine": {"brands": ["Intuniv"], "doses": ["1 mg nightly"]},
+    "sertraline": {"brands": ["Zoloft"], "doses": ["25 mg daily", "50 mg daily"]},
+    "fluoxetine": {"brands": ["Prozac"], "doses": ["10 mg daily", "20 mg daily"]},
+    "levetiracetam": {"brands": ["Keppra"], "doses": ["250 mg BID", "500 mg BID"]},
+    "albuterol": {"brands": ["ProAir", "Ventolin"], "doses": ["2 puffs q4h PRN"]},
+    "cetirizine": {"brands": ["Zyrtec"], "doses": ["5 mg daily", "10 mg daily"]},
+    "melatonin": {"brands": [], "doses": ["3 mg at bedtime"]},
+    "omeprazole": {"brands": ["Prilosec"], "doses": ["20 mg daily"]},
+    "levothyroxine": {"brands": ["Synthroid"], "doses": ["50 mcg daily", "75 mcg daily"]},
+    "lisinopril": {"brands": ["Zestril", "Prinivil"], "doses": ["10 mg daily", "20 mg daily"]},
+    "metformin": {"brands": ["Glucophage"], "doses": ["500 mg BID", "1000 mg BID"]},
+    "atorvastatin": {"brands": ["Lipitor"], "doses": ["20 mg nightly", "40 mg nightly"]}
+  },
+  "allergies": {
+    "penicillin": ["PCN", "penicillins"],
+    "sulfa drugs": ["sulfa", "sulfonamides"],
+    "peanuts": ["peanut"],
+    "latex": [],
+    "shellfish": []
+  },
+  "referrals": {
+    "speech therapy": {"aliases": ["SLP", "speech-language pathology"], "population": "peds"},
+    "occupational therapy": {"aliases": ["OT"], "population": "any"},
+    "physical therapy": {"aliases": ["PT"], "population": "any"},
+    "ABA therapy": {"aliases": ["ABA", "applied behavior analysis"], "population": "peds"},
+    "neurology": {"aliases": ["neuro"], "population": "any"},
+    "psychiatry": {"aliases": ["psych"], "population": "any"},
+    "cardiology": {"aliases": ["cards"], "population": "adult"},
+    "endocrinology": {"aliases": ["endo"], "population": "adult"}
+  }
+}

@@ -1,0 +1,217 @@
+{
+  "meta": {
+    "run_id": "20261111-195031_claude-haiku-5-5__extract_v1",
+    "extractor": "claude-haiku-5-5__extract_v1",
+    "data": "data/synthetic/notes_v1.jsonl",
+    "model": "claude-haiku-5-5",
+    "prompt": "prompts/extract_v1.md",
+    "git_commit": "2f74b14",
+    "workers": 4
+  },
+  "stats": {
+    "n": 20,
+    "failures": 0,
+    "failures_by_type": {},
+    "api_failed_notes": 0,
+    "retries": 0,
+    "attempts": 20,
+    "mean_latency_s": 1.8326668877503836,
+    "p95_latency_s": 3.6200867609586567,
+    "sum_call_latency_s": 36.65333775500767,
+    "wall_clock_s": 10.011852399911731,
+    "parallelism": 3.6609946182717215,
+    "input_tokens": 33747,
+    "output_tokens": 4945,
+    "total_cost_usd": 0.0058472,
+    "cost_notes": 20,
+    "cost_per_1k_notes_usd": 0.29236
+  },
+  "n_notes": 20,
+  "exact_match_rate": 1.0,
+  "overall": {
+    "tp": 183,
+    "fp": 0,
+    "fn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+  },
+  "fields": {
+    "visit_date": {
+      "tp": 20,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "visit_type": {
+      "tp": 20,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "patient_age": {
+      "tp": 20,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "follow_up_weeks": {
+      "tp": 18,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "conditions": {
+      "tp": 41,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "medications": {
+      "tp": 30,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "allergies": {
+      "tp": 16,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "referrals": {
+      "tp": 18,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "by_edge_case": {
+    "alias": {
+      "n_notes": 19,
+      "fields": [
+        "conditions",
+        "allergies",
+        "referrals"
+      ],
+      "tp": 71,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "brand_name": {
+      "n_notes": 11,
+      "fields": [
+        "medications"
+      ],
+      "tp": 14,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "declined_referral": {
+      "n_notes": 8,
+      "fields": [
+        "referrals"
+      ],
+      "tp": 8,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "discontinued_med": {
+      "n_notes": 9,
+      "fields": [
+        "medications"
+      ],
+      "tp": 13,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "family_history": {
+      "n_notes": 5,
+      "fields": [
+        "conditions"
+      ],
+      "tp": 12,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "negation": {
+      "n_notes": 13,
+      "fields": [
+        "conditions"
+      ],
+      "tp": 27,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "no_allergies": {
+      "n_notes": 9,
+      "fields": [
+        "allergies"
+      ],
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    "number_words": {
+      "n_notes": 4,
+      "fields": [
+        "follow_up_weeks"
+      ],
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "rule_out": {
+      "n_notes": 5,
+      "fields": [
+        "conditions"
+      ],
+      "tp": 8,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  }
+}

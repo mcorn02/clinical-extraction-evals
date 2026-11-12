@@ -3,17 +3,27 @@
 The trick: sample the structured record first, then write the note from it. The labels come
 for free, and we control exactly which edge cases each note contains.
 
-    python -m extract_eval.generate --n 20 --seed 0 --out data/synthetic/notes_v1.jsonl
+    python -m extract_eval.generate --n 20 --seed 0 --out data/synthetic/notes_v2.jsonl
+
+Refuses to overwrite an existing dataset (published results may reference it); pass --force
+to override deliberately. Writes a provenance sidecar `<stem>.meta.json` next to the dataset.
 """
 
 import argparse
+import hashlib
 import json
+import logging
 import random
-from datetime import date, timedelta
+import re
+import subprocess
+import sys
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from .schema import NoteExtraction, NoteRecord
-from .vocab import Vocab, load_vocab
+from .vocab import ROOT, VOCAB_PATH, Vocab, load_vocab
+
+logger = logging.getLogger(__name__)
 
 NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 6: "six", 8: "eight", 12: "twelve"}
 RELATIVES = ["mother", "father", "maternal grandmother", "paternal uncle", "older brother"]
@@ -235,6 +245,11 @@ def rewrite_with_llm(records: list[NoteRecord], model: str) -> list[NoteRecord]:
             {"role": "system", "content": REWRITE_PROMPT},
             {"role": "user", "content": r.text},
         ])
+        cost = f"${resp.cost_usd:.6f}" if resp.cost_usd is not None else "n/a"
+        logger.info(
+            "rewrote %s model=%s latency=%.2fs tokens_in=%s tokens_out=%s cost=%s",
+            r.id, model, resp.latency_s, resp.input_tokens, resp.output_tokens, cost,
+        )
         out.append(r.model_copy(update={
             "template_text": r.text,
             "text": resp.text.strip(),
@@ -243,34 +258,112 @@ def rewrite_with_llm(records: list[NoteRecord], model: str) -> list[NoteRecord]:
     return out
 
 
-def main() -> None:
+DATASET_RE = re.compile(r"^notes_v(\d+)\.jsonl$")
+
+
+def next_free_name(directory: Path) -> str:
+    """Next unused `notes_vN.jsonl` name in `directory` (one past the highest existing N)."""
+    versions = [
+        int(m.group(1))
+        for p in (directory.iterdir() if directory.is_dir() else [])
+        if (m := DATASET_RE.match(p.name))
+    ]
+    return f"notes_v{max(versions, default=0) + 1}.jsonl"
+
+
+def sidecar_path(out: Path) -> Path:
+    return out.with_name(f"{out.stem}.meta.json")
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _git_commit() -> str | None:
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5, check=True
+        )
+        return res.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def tag_counts(records: list[NoteRecord]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for r in records:
+        for t in r.tags:
+            counts[t] = counts.get(t, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def build_meta(records: list[NoteRecord], *, n: int, seed: int, rewrite_model: str | None, jsonl_sha256: str) -> dict:
+    sources = sorted({r.source for r in records})
+    return {
+        "n": n,
+        "seed": seed,
+        "rewrite_model": rewrite_model,
+        "source": sources[0] if len(sources) == 1 else sources,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "vocab_sha256": _sha256_file(VOCAB_PATH),
+        "git_commit": _git_commit(),
+        "edge_case_counts": tag_counts(records),
+        "jsonl_sha256": jsonl_sha256,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--n", type=int, default=20)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", default="data/synthetic/notes_v1.jsonl")
     p.add_argument("--rewrite-model", default=None, help="e.g. gpt-5-mini; optional LLM realism pass")
-    args = p.parse_args()
+    p.add_argument("--force", action="store_true", help="overwrite an existing dataset and sidecar (deliberately)")
+    args = p.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
+    out = Path(args.out)
+    meta_path = sidecar_path(out)
+    # Check before generating so a refused run never spends money on the rewrite pass.
+    if not args.force:
+        existing = [q for q in (out, meta_path) if q.exists()]
+        if existing:
+            names = ", ".join(str(q) for q in existing)
+            suggestion = out.parent / next_free_name(out.parent)
+            print(
+                f"Refusing to overwrite existing {names}: published results may reference it.\n"
+                f"Write a new dataset instead, e.g. --out {suggestion}\n"
+                f"(or pass --force to overwrite deliberately).",
+                file=sys.stderr,
+            )
+            return 1
+
+    logger.info("Generating %d notes (seed=%d)", args.n, args.seed)
     records = generate(args.n, args.seed)
     if args.rewrite_model:
         from dotenv import load_dotenv
 
         load_dotenv()
+        logger.info("Rewriting %d notes with %s", len(records), args.rewrite_model)
         records = rewrite_with_llm(records, args.rewrite_model)
 
-    out = Path(args.out)
+    payload = "".join(r.model_dump_json() + "\n" for r in records).encode()
     out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w") as f:
-        for r in records:
-            f.write(r.model_dump_json() + "\n")
+    mode = "wb" if args.force else "xb"
+    with out.open(mode) as f:
+        f.write(payload)
+    meta = build_meta(
+        records, n=args.n, seed=args.seed, rewrite_model=args.rewrite_model,
+        jsonl_sha256=hashlib.sha256(payload).hexdigest(),
+    )
+    with meta_path.open(mode) as f:
+        f.write((json.dumps(meta, indent=2) + "\n").encode())
+    logger.info("Wrote provenance sidecar %s", meta_path)
 
-    tag_counts: dict[str, int] = {}
-    for r in records:
-        for t in r.tags:
-            tag_counts[t] = tag_counts.get(t, 0) + 1
     print(f"Wrote {len(records)} notes to {out}")
-    print("Edge cases:", json.dumps(dict(sorted(tag_counts.items())), indent=None))
+    print("Edge cases:", json.dumps(meta["edge_case_counts"], indent=None))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

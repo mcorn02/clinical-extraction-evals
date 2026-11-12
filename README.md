@@ -38,7 +38,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env            # add the API keys you have
 
-python -m extract_eval.generate --n 20 --seed 0          # data/synthetic/notes_v1.jsonl
+python -m extract_eval.generate --n 20 --seed 0          # refuses: notes_v1.jsonl is committed (use --out notes_v2.jsonl for new data)
 python -m extract_eval.run_eval --extractor baseline     # offline, no key needed
 python -m extract_eval.run_eval --extractor llm --model gpt-5-mini --prompt prompts/extract_v1.md
 pytest

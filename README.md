@@ -49,24 +49,40 @@ Each run writes `results/<run_id>/` with `report.md`, `metrics.json` and `predic
 
 ## Results
 
-20 synthetic notes (`notes_v1`, seed 0).
+### Round 1: `notes_v1` (20 generated notes, seed 0, prompt v1)
 
-| Extractor | Prompt | Overall F1 | Conditions precision | Notes fully correct | Cost / 1k notes |
-|---|---|---:|---:|---:|---:|
-| Keyword baseline | – | 90.1 | 64.1 | 5% | $0 |
-| Claude Haiku 5.5 | v1 | 100.0 | 100.0 | 100% | $0.29 |
-| _model B_ | v1 | | | | |
+| Extractor | Overall F1 | Conditions precision | Notes fully correct | Cost / 1k notes |
+|---|---:|---:|---:|---:|
+| Keyword baseline | 90.1 | 64.1 | 5% | $0 |
+| Claude Haiku 5.5 | 100.0 | 100.0 | 100% | $0.29 |
 
-The baseline finds every mention (100% recall) but has no sense of context, so its precision collapses on negations, rule-outs and family history. That's the gap an LLM has to close.
+The baseline finds every mention (100% recall) but has no sense of context, so its precision collapses on negations, rule-outs and family history. Haiku 5.5 closes that gap completely, which says more about the dataset than the model: the template phrasings are too regular to separate models. Full run: [`results/reference/`](results/reference/).
 
-Haiku 5.5 closes it completely on this set: no errors on any field or edge case, mean latency 1.8s per note. A perfect score on 20 template notes says more about the dataset than the model. The phrasings are too regular to separate models, so the next step is harder notes (the LLM rewrite pass and more varied edge cases) rather than more models on this set. Full run: [`results/reference/`](results/reference/).
+### Round 2: `notes_v3` (24 hand-written hard notes, prompt v2)
+
+Hard cases include checkbox forms, corrections, resolved or family conditions, planned or restarted meds, refuted allergies, conditional referrals and date or age distractors. Six models, same prompt:
+
+| Model | F1 | Exact notes | Mean latency | Cost / 1k notes |
+|---|---:|---:|---:|---:|
+| Claude Haiku 5.5 | 99.7 | 95.8% | 1.65s | $0.29 |
+| GPT-6 Luna | 99.7 | 95.8% | 1.97s | $0.09 |
+| Gemini 3.8 Flash | 99.7 | 95.8% | 3.42s | $2.13 |
+| Gemini 4 Hydrogen | 99.7 | 95.8% | 2.51s | $5.49 |
+| Claude Sonnet 5.5 | 99.7 | 95.8% | 1.61s | $4.51 |
+| GPT-5.4 Nano | 98.9 | 91.7% | 1.22s | $0.34 |
+
+Takeaways so far:
+- Accuracy does not separate the top five: all make the same single conditions error (one out-of-vocabulary term). Cost does: Luna and Haiku match Sonnet and Gemini 4 Hydrogen at roughly 2-60x lower cost.
+- Nano is the cheapest-and-fastest tier but misses on `patient_age` and `follow_up_weeks`, so it's the only model that differs.
+- With 24 notes, one note is about 4 points of exact-match, so differences this small are not significant. Scaling the dataset is the next step.
+- Per-run folders under `results/` are gitignored; the numbers above come from `results/compare_20261114-173407.md` (local).
 
 ## Layout
 
 ```
 data/vocab.json              canonical names, aliases, brands, ICD-10 codes
 data/synthetic/              datasets (committed, so runs are reproducible). notes_v1: generated;
-                             notes_v2: hand-written hard cases (resolved or family conditions, planned or
+                             notes_v2, notes_v3: hand-written hard cases (resolved or family conditions, planned or
                              restarted meds, refuted allergies, conditional referrals, date traps)
 models.json                  models that `--models all` runs (LiteLLM names, API key env var, enabled flag)
 prompts/extract_v*.md        versioned prompts. Add a new file; don't edit an old one
@@ -84,7 +100,8 @@ tests/                       metric math, label integrity, extractor behavior (n
 
 - [x] Schema, generator, baseline, field-level metrics
 - [x] First LLM run on 20 notes (Claude Haiku 5.5, prompt v1)
-- [ ] 3–4 models compared on accuracy, cost per 1,000 notes and latency
+- [x] 6 models compared on accuracy, cost per 1,000 notes and latency (`--models all`)
+- [x] Harder hand-written datasets (`notes_v2`, `notes_v3`) and prompt v2
 - [ ] Prompt v0 vs v1 comparison
 - [ ] Scale to 75–100 notes; optional LLM rewrite pass (`--rewrite-model`), with 20 rewritten notes checked by hand
 - [ ] Langfuse tracing

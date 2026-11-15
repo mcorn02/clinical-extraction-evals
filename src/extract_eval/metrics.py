@@ -25,6 +25,39 @@ TAG_FIELDS = {
     "declined_referral": ["referrals"],
     "no_allergies": ["allergies"],
     "number_words": ["follow_up_weeks"],
+    # hand-written adversarial notes (notes_v2)
+    "resolved_condition": ["conditions"],
+    "hx_but_active": ["conditions"],
+    "suspected_dx": ["conditions"],
+    "ruled_out_result": ["conditions"],
+    "negation_contrast": ["conditions"],
+    "negation_list": ["conditions"],
+    "new_diagnosis": ["conditions"],
+    "inferred_condition_trap": ["conditions"],
+    "evaluate_for": ["conditions", "referrals"],
+    "family_medication": ["medications"],
+    "planned_med": ["medications"],
+    "dose_change": ["medications"],
+    "restarted_med": ["medications"],
+    "self_discontinued": ["medications"],
+    "switched_med": ["medications"],
+    "list_with_status": ["medications"],
+    "duplicate_surface": ["medications"],
+    "prn_med": ["medications"],
+    "nkda_food_allergy": ["allergies"],
+    "allergy_refuted": ["allergies"],
+    "allergy_negation": ["allergies"],
+    "family_allergy": ["allergies"],
+    "correction": ["allergies"],
+    "conditional_referral": ["referrals"],
+    "existing_referral": ["referrals"],
+    "prior_referral": ["referrals"],
+    "no_referral_needed": ["referrals"],
+    "abbreviation_collision": ["referrals"],
+    "date_distractor": ["visit_date"],
+    "age_distractor": ["patient_age"],
+    "unit_conversion": ["follow_up_weeks"],
+    "followup_hedge": ["follow_up_weeks"],
 }
 
 
@@ -79,7 +112,27 @@ def score_note(pred: NoteExtraction | None, gold: NoteExtraction, vocab: Vocab |
     return out
 
 
-def aggregate(per_note: list[dict[str, Counts]], tags: list[list[str]] | None = None) -> dict:
+def oov_predictions(pred: NoteExtraction | None, gold: NoteExtraction, vocab: Vocab | None = None) -> dict[str, list[str]]:
+    """Predicted list values the vocab can't map to a canonical name (and the gold doesn't contain).
+
+    These are still scored as false positives in `score_note`, so the headline numbers stay strict.
+    This just flags them so a human can grade each one: a hallucination, or a correct extraction
+    the vocab doesn't cover yet?
+    """
+    vocab = vocab or load_vocab()
+    out = {}
+    for field in LIST_FIELDS:
+        canonical = set(vocab.canonical_names(field))
+        gold_vals = field_values(field, gold, vocab)
+        out[field] = sorted(v for v in field_values(field, pred, vocab) if v not in canonical and v not in gold_vals)
+    return out
+
+
+def aggregate(
+    per_note: list[dict[str, Counts]],
+    tags: list[list[str]] | None = None,
+    oov: list[dict[str, list[str]]] | None = None,
+) -> dict:
     by_field = {f: Counts() for f in ALL_FIELDS}
     overall = Counts()
     exact = 0
@@ -96,6 +149,23 @@ def aggregate(per_note: list[dict[str, Counts]], tags: list[list[str]] | None = 
         "overall": overall.as_dict(),
         "fields": {f: c.as_dict() for f, c in by_field.items()},
     }
+
+    if oov is not None:
+        # Strict scoring counts every OOV value as a FP. Show what precision would be without them.
+        by_oov = {}
+        for f in LIST_FIELDS:
+            n = sum(len(o[f]) for o in oov)
+            c = by_field[f]
+            d = c.tp + c.fp - n
+            by_oov[f] = {"oov_count": n, "precision_if_oov_excluded": c.tp / d if d else None}
+        total = sum(v["oov_count"] for v in by_oov.values())
+        d = overall.tp + overall.fp - total
+        result["oov"] = {
+            "total": total,
+            "notes_with_oov": sum(1 for o in oov if any(o.values())),
+            "overall_precision_if_oov_excluded": overall.tp / d if d else None,
+            "fields": by_oov,
+        }
 
     # On notes containing each edge case, how does the field it targets hold up?
     if tags is not None:

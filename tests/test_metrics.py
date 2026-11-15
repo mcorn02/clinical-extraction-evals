@@ -1,4 +1,4 @@
-from extract_eval.metrics import aggregate, check_regression, score_note
+from extract_eval.metrics import aggregate, check_regression, oov_predictions, score_note
 from extract_eval.schema import NoteExtraction
 
 GOLD = NoteExtraction(
@@ -52,3 +52,19 @@ def test_regression_check_flags_drops_only():
     new = {"fields": {"conditions": {"f1": 0.94}, "medications": {"f1": 0.80}}}
     problems = check_regression(new, ref, max_drop=0.02)
     assert len(problems) == 1 and problems[0].startswith("medications")
+
+
+def test_out_of_vocab_values_are_flagged_but_still_strict_false_positives():
+    pred = GOLD.model_copy(update={"conditions": ["ASD", "asthma", "eczema"]})
+    assert oov_predictions(pred, GOLD)["conditions"] == ["eczema"]
+    assert oov_predictions(GOLD, GOLD) == {f: [] for f in ["conditions", "medications", "allergies", "referrals"]}
+    m = aggregate([score_note(pred, GOLD)], oov=[oov_predictions(pred, GOLD)])
+    assert m["fields"]["conditions"]["fp"] == 1  # strict: unchanged
+    assert m["fields"]["conditions"]["precision"] == 2 / 3
+    assert m["oov"]["fields"]["conditions"] == {"oov_count": 1, "precision_if_oov_excluded": 1.0}
+    assert m["oov"]["total"] == 1 and m["oov"]["notes_with_oov"] == 1
+
+
+def test_known_wrong_value_is_a_fp_not_oov():
+    pred = GOLD.model_copy(update={"conditions": ["autism spectrum disorder", "epilepsy"]})
+    assert oov_predictions(pred, GOLD)["conditions"] == []

@@ -41,6 +41,7 @@ cp .env.example .env            # add the API keys you have
 python -m extract_eval.generate --n 20 --seed 0          # refuses: notes_v1.jsonl is committed (use --out notes_v2.jsonl for new data)
 python -m extract_eval.run_eval --extractor baseline     # offline, no key needed
 python -m extract_eval.run_eval --extractor llm --model gpt-5-mini --prompt prompts/extract_v1.md
+python -m extract_eval.run_eval --models all --prompt prompts/extract_v1.md   # every model in models.json with a key set
 pytest
 ```
 
@@ -64,14 +65,18 @@ Haiku 5.5 closes it completely on this set: no errors on any field or edge case,
 
 ```
 data/vocab.json              canonical names, aliases, brands, ICD-10 codes
-data/synthetic/              generated datasets (committed, so runs are reproducible)
+data/synthetic/              datasets (committed, so runs are reproducible). notes_v1: generated;
+                             notes_v2: hand-written hard cases (resolved or family conditions, planned or
+                             restarted meds, refuted allergies, conditional referrals, date traps)
+models.json                  models that `--models all` runs (LiteLLM names, API key env var, enabled flag)
 prompts/extract_v*.md        versioned prompts. Add a new file; don't edit an old one
 src/extract_eval/
   schema.py                  Pydantic model: the extraction target
   generate.py                synthetic notes with known labels
   extract.py                 baseline + LLM extractors (one retry on invalid JSON)
-  metrics.py                 field-level precision/recall, edge-case breakdown, regression check
-  run_eval.py                CLI
+  metrics.py                 field-level precision/recall, edge-case breakdown, out-of-vocab flagging, regression check
+  models.py                  reads models.json and resolves `--models all` / comma lists
+  run_eval.py                CLI: one model, or several with --models (writes a side-by-side comparison)
 tests/                       metric math, label integrity, extractor behavior (no network)
 ```
 

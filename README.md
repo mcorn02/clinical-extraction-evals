@@ -104,6 +104,7 @@ tests/                       metric math, label integrity, extractor behavior (n
 - [x] Harder hand-written datasets (`notes_v2`, `notes_v3`) and prompt v2
 - [ ] Prompt v0 vs v1 comparison
 - [ ] Scale to 75–100 notes; optional LLM rewrite pass (`--rewrite-model`), with 20 rewritten notes checked by hand
+  - **Fix before scaling:** `notes_v3` note `note_adv_v2_0009` ("diabetes educator call in 1 week") has gold `referrals: []`, but "diabetes education" was graded an acceptable extraction (verdict `ok`) and is flagged out-of-vocabulary, so it counts as a strict false positive. Decide on the label, add it to `vocab.json` if kept, and fix the gold in the new dataset file (not in place). `note_adv_v2_0012` "low back pain" was graded `bad` (a symptom, correctly excluded), so no change.
 - [ ] Langfuse tracing
 - [ ] Reference run committed to `results/reference/` and used as the regression gate
 - [ ] Write-up: *How I'd evaluate this for a clinic*

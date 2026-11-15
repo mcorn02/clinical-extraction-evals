@@ -15,7 +15,7 @@ Each note is turned into one `NoteExtraction` object (`schema.py`):
 | `referrals` | list | "Will refer to neuro." → `["neurology"]` |
 | `follow_up_weeks` | int | "Return in four weeks." → `4` |
 
-List values are always the **canonical names** from `data/vocab.json` (16 conditions, 14 medications, 5 allergies, 8 referrals), each with aliases and brand names.
+Gold labels always use the **canonical names** from `data/vocab.json` (16 conditions, 14 medications, 5 allergies, 8 referrals), each with aliases and brand names. Predictions are mapped onto them. From prompt v2 on, a model may give a short standard name when none fits; those are flagged as out-of-vocabulary (see Scoring).
 
 ## Two extractors, not a pipeline
 
@@ -66,7 +66,7 @@ flowchart TD
         S[score_note<br/>normalize via vocab,<br/>set compare vs gold:<br/>TP / FP / FN per field] --> A[aggregate<br/>per field, overall,<br/>exact match,<br/>by edge-case tag]
     end
     D -- gold --> S
-    A --> OUT[(results/run_id/<br/>report.md · metrics.json ·<br/>predictions.jsonl)]
+    A --> OUT[(results/run_id/<br/>report.md · metrics.json ·<br/>predictions.jsonl · oov_review.jsonl)]
     OUT -. --compare .-> REG[check_regression<br/>exit 1 if a field's F1 drops]
 
     C1 -. every attempt .-> TR[(results/run_id/llm_calls.jsonl)]
@@ -81,9 +81,27 @@ flowchart TD
 | `report.md` | Precision, recall and F1 per field and per edge case; failures by type; latency; wall clock and parallelism; cost per 1k notes | Read the headline result |
 | `metrics.json` | The same numbers in machine-readable form, plus run config and stats | Compare runs; regression gate |
 | `predictions.jsonl` | Per note: prediction, gold, the FP/FN for each field, raw reply, `error_type`, `attempts` | Error analysis |
+| `oov_review.jsonl` | One line per **out-of-vocabulary** prediction (a value `vocab.json` can't map to a canonical name): field, value, the full note text and an empty `verdict` | Grade by hand: correct extraction the vocab lacks, or a hallucination? |
 | `llm_calls.jsonl` | **One line per LLM attempt**, retries and failures included: start and end timestamps, latency, tokens, cost, status (`ok`, `invalid_output`, `rate_limit`, `auth`, `timeout`, …), raw reply, retry feedback, worker thread | Debug a note; find slow calls; see queueing and rate limits |
 | `run.log` | Human-readable: config and git commit, one line per note, warnings for retries and API errors, summary | Follow a run while it's in progress (`tail -f`) |
 | `system_prompt.txt` | The exact prompt the model saw (its sha256 is in every trace line) | Reproduce a run |
+
+## Running several models (`--models`)
+
+`--models all` runs every entry in `models.json` that is `enabled` and whose API key is set; `--models a,b` runs exactly those names (disabled or unregistered ones included). Models run one after another, each as a normal run with its own `results/<run_id>/` folder (`--workers` still sets parallelism within a model). A model that errors, for example a wrong model string, is recorded and the loop carries on.
+
+```mermaid
+flowchart LR
+    M[(models.json)] --> RM[models.resolve_models<br/>enabled + API key set]
+    RM --> L{for each model}
+    L --> RO[run_once<br/>normal run, own results folder]
+    RO --> L
+    RO -. error .-> FL[recorded as failed,<br/>loop continues]
+    L --> CMP[(results/compare_time.md + .json<br/>one row per model, sorted by F1,<br/>plus F1 by field)]
+    FL --> CMP
+```
+
+`compare_<time>.md` has precision, recall, F1, exact-match rate, out-of-vocab count, failures, mean latency and cost per 1k notes for each model, then F1 per field, then any failed or skipped models. The process exits 1 if a model failed or `--compare` flagged a regression in any model.
 
 API errors are classified by type (`llm.classify_error`), and error messages are redacted so keys never reach the logs. Notes that failed on an API error are left out of cost per 1k and counted separately.
 
@@ -125,5 +143,7 @@ TP = pred ∩ gold = {asthma}   → 1
 FP = pred − gold = {OSA}      → 1   (invented or not excluded)
 FN = gold − pred = {ASD}      → 1   (missed)
 ```
+
+Scoring is strict: a predicted value that `vocab.json` can't map to a canonical name is lowercased, kept, and counted as a false positive. The prompt lets a model use a short standard name when no canonical one fits, so such values are also **flagged** instead of silently penalized: `report.md` shows precision both strict and with them excluded, and `oov_review.jsonl` holds each one for hand grading. The headline numbers and the `--compare` gate stay strict.
 
 Single-value fields are sets of size 0 or 1, so a wrong age counts as 1 FP and 1 FN, and a missing age counts as 1 FN. Counts are summed across all notes before computing precision, recall and F1.

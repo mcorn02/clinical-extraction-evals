@@ -1,0 +1,12 @@
+{
+  "_note": "Models for `run_eval --models all`. Names are LiteLLM model strings. `all` runs every entry with enabled=true whose env_key is set. Edit freely; check the strings against your own provider access.",
+  "models": [
+    {"name": "anthropic/claude-haiku-5-5", "env_key": "ANTHROPIC_API_KEY", "enabled": true},
+    {"name": "gpt-6-luna", "env_key": "OPENAI_API_KEY", "enabled": true},
+    {"name": "gpt-5.4-nano", "env_key": "OPENAI_API_KEY", "enabled": true},
+    {"name": "gemini/gemini-3.8-flash", "env_key": "GEMINI_API_KEY", "enabled": true},
+    {"name": "gemini/gemini-4-hydrogen", "env_key": "GEMINI_API_KEY", "enabled": true},
+    {"name": "anthropic/claude-sonnet-5-5", "env_key": "ANTHROPIC_API_KEY", "enabled": true},
+    {"name": "anthropic/claude-opus-5-5", "env_key": "ANTHROPIC_API_KEY", "enabled": false}
+  ]
+}

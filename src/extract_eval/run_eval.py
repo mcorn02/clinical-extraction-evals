@@ -25,7 +25,8 @@ from datetime import datetime
 from pathlib import Path
 
 from .extract import BaselineExtractor, ExtractionResult, LLMExtractor
-from .metrics import aggregate, check_regression, score_note
+from .models import load_models, resolve_models
+from .metrics import aggregate, check_regression, oov_predictions, score_note
 from .schema import ALL_FIELDS, NoteRecord
 from .vocab import load_vocab
 
@@ -167,6 +168,24 @@ def render_report(meta: dict, metrics: dict, stats: dict) -> str:
         f"- Tokens: {stats['input_tokens']:,} in / {stats['output_tokens']:,} out",
         cost_line,
     ]
+    oov = metrics.get("oov")
+    if oov is not None:
+        lines += ["", "## Out-of-vocabulary predictions", ""]
+        if not oov["total"]:
+            lines.append("None: every predicted value mapped to a canonical name or matched the gold.")
+        else:
+            lines += [
+                f"{oov['total']} predicted value(s) in {oov['notes_with_oov']} note(s) are not in `vocab.json`. "
+                "They are counted as false positives above (strict). Grade them in `oov_review.jsonl`; "
+                f"overall precision if all were excluded: {_fmt(oov['overall_precision_if_oov_excluded'])}.",
+                "",
+                "| Field | OOV values | Precision (strict) | Precision if OOV excluded |", "|---|---:|---:|---:|",
+            ]
+            for f, m in oov["fields"].items():
+                if m["oov_count"]:
+                    lines.append(f"| {f} | {m['oov_count']} | {_fmt(metrics['fields'][f]['precision'])} | {_fmt(m['precision_if_oov_excluded'])} |")
+            lines += ["", "| Note | Field | Value |", "|---|---|---|"]
+            lines += [f"| {i['id']} | {i['field']} | {i['value']} |" for i in oov["items"]]
     if metrics.get("by_edge_case"):
         lines += ["", "## By edge case (scored on the field each one targets)", "",
                   "| Edge case | Field(s) | Notes | Precision | Recall | FP | FN |", "|---|---|---:|---:|---:|---:|---:|"]
@@ -175,34 +194,35 @@ def render_report(meta: dict, metrics: dict, stats: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data", default="data/synthetic/notes_v1.jsonl")
     p.add_argument("--extractor", choices=["baseline", "llm"], default="baseline")
     p.add_argument("--model", help="LiteLLM model string, e.g. gpt-5-mini or anthropic/claude-haiku-5-5")
+    p.add_argument("--models", help="run several models in one go: `all` (every enabled model in models.json "
+                   "with its API key set) or a comma-separated list. Implies --extractor llm.")
     p.add_argument("--prompt", default="prompts/extract_v1.md")
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--out-dir", default="results")
     p.add_argument("--compare", help="metrics.json from a reference run")
     p.add_argument("--max-drop", type=float, default=0.02)
-    args = p.parse_args()
+    return p
 
+
+def run_once(args: argparse.Namespace, model: str | None) -> dict:
+    """One extractor over the dataset: write results/<run_id>/ and return the headline numbers.
+    `model=None` runs the offline baseline."""
     vocab = load_vocab()
-    if args.extractor == "baseline":
+    if model is None:
         extractor = BaselineExtractor(vocab)
     else:
-        if not args.model:
-            p.error("--model is required with --extractor llm")
-        from dotenv import load_dotenv
-
-        load_dotenv()
-        extractor = LLMExtractor(args.model, args.prompt, vocab)
+        extractor = LLMExtractor(model, args.prompt, vocab)
 
     records = load_dataset(args.data, args.limit)
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}_{extractor.name.replace('/', '-')}"
     meta = {"run_id": run_id, "extractor": extractor.name, "data": args.data,
-            "model": args.model, "prompt": args.prompt if args.extractor == "llm" else None,
+            "model": model, "prompt": args.prompt if model else None,
             "git_commit": _git_commit(), "workers": args.workers}
 
     # Create the run dir first so run.log and llm_calls.jsonl stream while notes are processed
@@ -216,7 +236,7 @@ def main() -> None:
             trace = JsonlTraceWriter(out / "llm_calls.jsonl", run_id)
             extractor.trace = trace
         log.info("run %s: extractor=%s model=%s prompt=%s data=%s notes=%d workers=%d git=%s",
-                 run_id, args.extractor, args.model, meta["prompt"], args.data, len(records), args.workers,
+                 run_id, args.extractor, model, meta["prompt"], args.data, len(records), args.workers,
                  meta["git_commit"])
         if trace is not None:
             log.info("system prompt sha256=%s (saved to system_prompt.txt)", extractor.system_prompt_sha256)
@@ -235,17 +255,28 @@ def main() -> None:
         wall = time.perf_counter() - t0
 
         per_note = [score_note(res.prediction, rec.gold, vocab) for res, rec in zip(results, records)]
-        metrics = aggregate(per_note, [r.tags for r in records])
+        oov = [oov_predictions(res.prediction, rec.gold, vocab) for res, rec in zip(results, records)]
+        metrics = aggregate(per_note, [r.tags for r in records], oov)
+        oov_items = [
+            {"id": rec.id, "field": f, "value": v, "verdict": None, "note_text": rec.text}
+            for rec, o in zip(records, oov) for f, vals in o.items() for v in vals
+        ]
+        metrics["oov"]["items"] = [{k: i[k] for k in ("id", "field", "value")} for i in oov_items]
+        # Fill in "verdict" by hand ("ok" = correct extraction the vocab lacks, "bad" = hallucination)
+        with (out / "oov_review.jsonl").open("w") as f:
+            for i in oov_items:
+                f.write(json.dumps(i) + "\n")
         stats = run_stats(results, wall_clock_s=wall)
 
         with (out / "predictions.jsonl").open("w") as f:
-            for rec, res, sc in zip(records, results, per_note):
+            for rec, res, sc, o in zip(records, results, per_note, oov):
                 f.write(json.dumps({
                     "id": rec.id,
                     "tags": rec.tags,
                     "prediction": res.prediction.model_dump(mode="json") if res.prediction else None,
                     "gold": rec.gold.model_dump(mode="json"),
                     "errors": {k: {"fp": v.fp, "fn": v.fn} for k, v in sc.items() if v.fp or v.fn},
+                    "oov": {k: v for k, v in o.items() if v},
                     "raw": res.raw,
                     "error": res.error,
                     "error_type": res.error_type,
@@ -275,13 +306,121 @@ def main() -> None:
     print(report)
     print(f"Saved to {out}/")
 
+    regressed = False
     if args.compare:
         reference = json.loads(Path(args.compare).read_text())
         problems = check_regression(metrics, reference, args.max_drop)
         if problems:
             print("REGRESSION vs reference:\n  " + "\n  ".join(problems))
+            regressed = True
+        else:
+            print(f"No field dropped more than {args.max_drop:.0%} vs reference.")
+    return {"model": model or extractor.name, "run_dir": str(out), "metrics": metrics, "stats": stats,
+            "regressed": regressed}
+
+
+def all_failed(result: dict) -> str | None:
+    """Reason string if every note in this run failed (bad model name, no access, outage), else None.
+    Such a run has no scores at all, so it must not look like a model that scored 0."""
+    n, failures = result["metrics"]["n_notes"], result["stats"]["failures"]
+    if n and failures >= n:
+        by_type = ", ".join(f"{t}: {c}" for t, c in (result["stats"].get("failures_by_type") or {}).items())
+        return f"all {n} notes failed ({by_type or 'unknown error'}); see {Path(result['run_dir']).name}/run.log"
+    return None
+
+
+def render_comparison(rows: list[dict], failed: list[tuple[str, str]], skipped: list[tuple[str, str]], meta: dict) -> str:
+    """Side-by-side table for a multi-model run. `rows` are run_once() results."""
+    lines = [
+        "# Model comparison",
+        "",
+        f"Data: `{meta['data']}` · Prompt: `{meta['prompt']}` · Run: {meta['stamp']}",
+        "",
+        "| Model | Precision | Recall | F1 | Exact | OOV | Failures | Mean latency (s) | Cost / 1k notes | Run |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    for r in sorted(rows, key=lambda r: -(r["metrics"]["overall"]["f1"] or 0)):
+        m, st = r["metrics"], r["stats"]
+        o = m["overall"]
+        cost = st["cost_per_1k_notes_usd"]
+        oov = m.get("oov", {}).get("total", 0)
+        lines.append(
+            f"| {r['model']} | {_fmt(o['precision'])} | {_fmt(o['recall'])} | {_fmt(o['f1'])} | {_fmt(m['exact_match_rate'])} "
+            f"| {oov} | {st['failures']} | {st['mean_latency_s']:.2f} | {'$%.2f' % cost if cost is not None else 'unknown'} "
+            f"| `{Path(r['run_dir']).name}` |"
+        )
+    if rows:
+        lines += ["", "## F1 by field", "", "| Model | " + " | ".join(ALL_FIELDS) + " |", "|---|" + "---:|" * len(ALL_FIELDS)]
+        for r in rows:
+            lines.append(f"| {r['model']} | " + " | ".join(_fmt(r["metrics"]["fields"][f]["f1"]) for f in ALL_FIELDS) + " |")
+    if failed:
+        lines += ["", "## Failed to run", ""] + [f"- {m}: {why}" for m, why in failed]
+    if skipped:
+        lines += ["", "## Skipped", ""] + [f"- {m}: {why}" for m, why in skipped]
+    return "\n".join(lines) + "\n"
+
+
+def main() -> None:
+    p = build_parser()
+    args = p.parse_args()
+
+    if args.models and args.model:
+        p.error("use either --model or --models, not both")
+    if args.models:
+        args.extractor = "llm"
+    if args.extractor == "llm" and not (args.model or args.models):
+        p.error("--model (or --models) is required with --extractor llm")
+    if args.extractor == "llm":
+        from dotenv import load_dotenv
+
+        load_dotenv()
+
+    if not args.models:
+        result = run_once(args, args.model if args.extractor == "llm" else None)
+        if why := all_failed(result):
+            print(f"FAILED: {why}", file=sys.stderr)
             sys.exit(1)
-        print(f"No field dropped more than {args.max_drop:.0%} vs reference.")
+        if result["regressed"]:
+            sys.exit(1)
+        return
+
+    models, skipped = resolve_models(args.models, load_models())
+    for m, why in skipped:
+        print(f"Skipping {m}: {why}", file=sys.stderr)
+    if not models:
+        p.error("no models to run (check models.json and your API keys)")
+    print(f"Running {len(models)} model(s) one after another: {', '.join(models)}", file=sys.stderr)
+
+    rows, failed = [], []
+    for m in models:
+        print(f"\n=== {m} ===", file=sys.stderr)
+        try:
+            result = run_once(args, m)
+            if why := all_failed(result):
+                log.error("model %s: %s", m, why)
+                failed.append((m, why))
+            else:
+                rows.append(result)
+        except Exception as e:  # one bad model name or outage shouldn't lose the other runs
+            log.error("model %s failed: %s", m, e)
+            failed.append((m, f"{type(e).__name__}: {e}"[:300]))
+
+    stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
+    summary = render_comparison(rows, failed, skipped, {"data": args.data, "prompt": args.prompt, "stamp": stamp})
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"compare_{stamp}.md").write_text(summary)
+    (out_dir / f"compare_{stamp}.json").write_text(json.dumps(
+        {"data": args.data, "prompt": args.prompt, "runs": [
+            {"model": r["model"], "run_dir": r["run_dir"], "overall": r["metrics"]["overall"],
+             "exact_match_rate": r["metrics"]["exact_match_rate"], "oov": r["metrics"].get("oov", {}).get("total"),
+             "cost_per_1k_notes_usd": r["stats"]["cost_per_1k_notes_usd"], "mean_latency_s": r["stats"]["mean_latency_s"],
+             "regressed": r["regressed"]} for r in rows],
+         "failed": failed, "skipped": skipped}, indent=2, default=str))
+    print("\n" + summary)
+    print(f"Saved to {out_dir}/compare_{stamp}.md")
+    if failed or any(r["regressed"] for r in rows):
+        sys.exit(1)
 
 
 if __name__ == "__main__":

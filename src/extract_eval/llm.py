@@ -1,7 +1,7 @@
 """One thin wrapper around LiteLLM so every provider looks the same.
 
 Model strings follow LiteLLM's format, e.g. "gpt-5-mini", "anthropic/claude-haiku-5-5",
-"gemini/gemini-2.5-flash". API keys come from environment variables (see .env.example).
+"gemini/gemini-3.8-flash". API keys come from environment variables (see .env.example).
 
 `call_llm` times every call, including ones that raise: on failure the exception gets a
 `latency_s` attribute before it is re-raised. `classify_error` / `describe_error` turn an

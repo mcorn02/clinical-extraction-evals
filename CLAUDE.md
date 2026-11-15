@@ -8,6 +8,7 @@ Eval kit for LLM extraction from synthetic clinical-style notes. See README.md f
 - Generate data: `python -m extract_eval.generate --n 20 --seed 0`
 - Baseline run: `python -m extract_eval.run_eval --extractor baseline`
 - LLM run: `python -m extract_eval.run_eval --extractor llm --model <litellm model> --prompt prompts/extract_v1.md`
+- All models: `python -m extract_eval.run_eval --models all --prompt prompts/extract_v2.md --data data/synthetic/notes_v2.jsonl` (list in `models.json`; writes `results/compare_<time>.md`)
 
 ## Rules
 - Synthetic data only. Never add real patient notes or anything copied from an employer's systems.
